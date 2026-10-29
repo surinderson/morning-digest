@@ -4,6 +4,8 @@ import { lane } from './lane.js';
 import { readStatus } from './status.js';
 import { Layout } from './views/layout.js';
 import { StatusBoard } from './views/status.js';
+import { readNight } from './digest/read-night.js';
+import { DigestPage } from './views/digest.js';
 
 export function createApp(config: RigConfig = loadConfig()) {
   const app = new Hono();
@@ -17,6 +19,22 @@ export function createApp(config: RigConfig = loadConfig()) {
       </Layout>,
     ),
   );
+
+  app.get('/digest/:night', async (c) => {
+    try {
+      const { rows } = await readNight(config.runsDir, c.req.param('night'));
+      return c.html(
+        <Layout title={`digest ${c.req.param('night')}`} lane={lane()}>
+          <DigestPage night={c.req.param('night')} rows={rows} />
+        </Layout>,
+      );
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return c.notFound();
+      }
+      throw error;
+    }
+  });
 
   return app;
 }
