@@ -1,8 +1,9 @@
 ---
 plan: morning-digest
-status: ready
+status: done
 owner: rook
 opened: 2026-10-29
+closed: 2026-10-29
 ---
 
 # Morning digest
@@ -77,3 +78,16 @@ page again with `LANE_MARKER` unset (the banner reads "no marker set") and uploa
 link. Move this plan to `docs/plans/done/` with its issue list.
 
 Done when: the preview link no longer shows the lane marker.
+
+
+## Issues
+
+| # | Issue | Blocked by | Worker | Closed |
+|---|-------|------------|--------|--------|
+| 1 | [Run log reader and DigestRow contract](https://github.com/surinderson/morning-digest/issues/1) | - | codex harness · gpt-6-luna · medium | 2026-10-29 |
+| 2 | [Digest HTML page](https://github.com/surinderson/morning-digest/issues/2) | #1 | codex harness · gpt-6-luna · medium | 2026-10-29 |
+| 3 | [Digest JSON API](https://github.com/surinderson/morning-digest/issues/3) | #1 | codex harness · gpt-6-luna · medium | 2026-10-29 |
+| 4 | [Link board nights to digests](https://github.com/surinderson/morning-digest/issues/4) | #1, #2 | codex harness · gpt-6-luna · medium | 2026-10-29 |
+| 5 | [Digest page and API route tests](https://github.com/surinderson/morning-digest/issues/5) | #2, #3 | codex harness · gpt-6-luna · medium | 2026-10-29 |
+| 6 | [Publish a self-contained digest preview for review](https://github.com/surinderson/morning-digest/issues/6) | #2, #3, #4, #5 | codex harness · gpt-6-luna · medium | 2026-10-29 |
+| 7 | [Remove the preview marker and finish the plan](https://github.com/surinderson/morning-digest/issues/7) | #6, reviewer | codex harness · gpt-6-luna · medium | 2026-10-29 |
