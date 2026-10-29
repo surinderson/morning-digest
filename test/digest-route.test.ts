@@ -71,3 +71,59 @@ describe('digest page', () => {
     expect(await res.text()).toContain('nothing ran');
   });
 });
+
+describe('digest JSON API', () => {
+  it('returns the reader result with rows in the same order and malformed line count', async () => {
+    const dir = await makeRunsDir();
+    await writeFile(
+      join(dir, 'night.jsonl'),
+      [
+        JSON.stringify({ at: '2026-10-28T02:00:00+01:00', job: 'zeta', status: 'ok', owner: null }),
+        '{bad json',
+        JSON.stringify({ at: '2026-10-28T01:00:00+01:00', job: 'alpha', status: 'retry', owner: 'rook', error: 'timeout' }),
+      ].join('\n'),
+    );
+
+    const res = await appFor(dir).request('/api/digest/night');
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('application/json');
+    expect(await res.json()).toEqual({
+      rows: [
+        {
+          job: 'alpha',
+          owner: 'rook',
+          runs: 1,
+          retries: 1,
+          lastStatus: 'retry',
+          lastError: 'timeout',
+          firstAt: '2026-10-28T01:00:00+01:00',
+          lastAt: '2026-10-28T01:00:00+01:00',
+        },
+        {
+          job: 'zeta',
+          owner: null,
+          runs: 1,
+          retries: 0,
+          lastStatus: 'ok',
+          lastError: null,
+          firstAt: '2026-10-28T02:00:00+01:00',
+          lastAt: '2026-10-28T02:00:00+01:00',
+        },
+      ],
+      malformedLines: 1,
+    });
+  });
+
+  it('returns 404 when the night file is missing', async () => {
+    const res = await appFor(await makeRunsDir()).request('/api/digest/missing');
+    expect(res.status).toBe(404);
+  });
+
+  it('returns an empty result for an empty night', async () => {
+    const dir = await makeRunsDir();
+    await writeFile(join(dir, 'empty.jsonl'), '');
+    const res = await appFor(dir).request('/api/digest/empty');
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ rows: [], malformedLines: 0 });
+  });
+});

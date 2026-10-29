@@ -36,5 +36,17 @@ export function createApp(config: RigConfig = loadConfig()) {
     }
   });
 
+  app.get('/api/digest/:night', async (c) => {
+    try {
+      const result = await readNight(config.runsDir, c.req.param('night'));
+      return c.json(result);
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+        return c.notFound();
+      }
+      throw error;
+    }
+  });
+
   return app;
 }
