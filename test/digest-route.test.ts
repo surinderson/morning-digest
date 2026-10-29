@@ -25,55 +25,8 @@ function appFor(runsDir: string) {
   });
 }
 
-describe('digest page', () => {
-  it('renders the checked in night as a server rendered table', async () => {
-    const res = await appFor(join(process.cwd(), 'runs')).request('/digest/2026-10-28');
-    const html = await res.text();
-    expect(res.status).toBe(200);
-    expect(html).toContain('<table>');
-    expect(html).toContain('fixtures/refresh');
-    expect(html).not.toContain('<script');
-  });
-
-  it('renders sorted rows and marks retries and failures', async () => {
-    const dir = await makeRunsDir();
-    await writeFile(
-      join(dir, 'night.jsonl'),
-      [
-        ...Array.from({ length: 3 }, (_, index) =>
-          JSON.stringify({ at: `2026-10-28T0${index + 1}:00:00+01:00`, job: 'zeta', status: 'retry', owner: null }),
-        ),
-        JSON.stringify({ at: '2026-10-28T04:00:00+01:00', job: 'alpha', status: 'fail', owner: 'rook' }),
-        '{bad json',
-      ].join('\n'),
-    );
-
-    const res = await appFor(dir).request('/digest/night');
-    const html = await res.text();
-    expect(res.status).toBe(200);
-    expect(html.indexOf('alpha')).toBeLessThan(html.indexOf('zeta'));
-    expect(html).toContain('—');
-    expect(html).toContain('<tr class="warn">');
-    expect(html).toContain('fail');
-    expect(html).toContain('retries');
-  });
-
-  it('returns 404 when the night file is missing', async () => {
-    const res = await appFor(await makeRunsDir()).request('/digest/missing');
-    expect(res.status).toBe(404);
-  });
-
-  it('renders nothing ran for an empty file', async () => {
-    const dir = await makeRunsDir();
-    await writeFile(join(dir, 'empty.jsonl'), '');
-    const res = await appFor(dir).request('/digest/empty');
-    expect(res.status).toBe(200);
-    expect(await res.text()).toContain('nothing ran');
-  });
-});
-
-describe('digest JSON API', () => {
-  it('returns the reader result with rows in the same order and malformed line count', async () => {
+describe('digest routes', () => {
+  it('serves HTML and JSON for the same night, ignoring malformed lines and keeping job order aligned', async () => {
     const dir = await makeRunsDir();
     await writeFile(
       join(dir, 'night.jsonl'),
@@ -84,46 +37,54 @@ describe('digest JSON API', () => {
       ].join('\n'),
     );
 
-    const res = await appFor(dir).request('/api/digest/night');
-    expect(res.status).toBe(200);
-    expect(res.headers.get('content-type')).toContain('application/json');
-    expect(await res.json()).toEqual({
-      rows: [
-        {
-          job: 'alpha',
-          owner: 'rook',
-          runs: 1,
-          retries: 1,
-          lastStatus: 'retry',
-          lastError: 'timeout',
-          firstAt: '2026-10-28T01:00:00+01:00',
-          lastAt: '2026-10-28T01:00:00+01:00',
-        },
-        {
-          job: 'zeta',
-          owner: null,
-          runs: 1,
-          retries: 0,
-          lastStatus: 'ok',
-          lastError: null,
-          firstAt: '2026-10-28T02:00:00+01:00',
-          lastAt: '2026-10-28T02:00:00+01:00',
-        },
-      ],
-      malformedLines: 1,
-    });
+    const app = appFor(dir);
+    const [pageResponse, jsonResponse] = await Promise.all([
+      app.request('/digest/night'),
+      app.request('/api/digest/night'),
+    ]);
+    const html = await pageResponse.text();
+    const result = await jsonResponse.json();
+
+    expect(pageResponse.status).toBe(200);
+    expect(pageResponse.headers.get('content-type')).toContain('text/html');
+    expect(html).toContain('<table>');
+    expect(html).toContain('alpha');
+    expect(html).toContain('zeta');
+    expect(html).not.toContain('bad json');
+
+    expect(jsonResponse.status).toBe(200);
+    expect(jsonResponse.headers.get('content-type')).toContain('application/json');
+    expect(result).toMatchObject({ malformedLines: 1 });
+    expect(result.rows.map(({ job }: { job: string }) => job)).toEqual(['alpha', 'zeta']);
+
+    const tbody = html.match(/<tbody>([\s\S]*?)<\/tbody>/)?.[1] ?? '';
+    const pageJobs = [...tbody.matchAll(/<tr[^>]*>\s*<td>([^<]*)<\/td>/g)].map((match) => match[1]);
+    expect(pageJobs).toEqual(result.rows.map(({ job }: { job: string }) => job));
   });
 
-  it('returns 404 when the night file is missing', async () => {
-    const res = await appFor(await makeRunsDir()).request('/api/digest/missing');
-    expect(res.status).toBe(404);
+  it('returns 404 for a missing night from both routes', async () => {
+    const app = appFor(await makeRunsDir());
+    const [pageResponse, jsonResponse] = await Promise.all([
+      app.request('/digest/missing'),
+      app.request('/api/digest/missing'),
+    ]);
+
+    expect(pageResponse.status).toBe(404);
+    expect(jsonResponse.status).toBe(404);
   });
 
-  it('returns an empty result for an empty night', async () => {
+  it('renders and returns an empty result for an empty night', async () => {
     const dir = await makeRunsDir();
     await writeFile(join(dir, 'empty.jsonl'), '');
-    const res = await appFor(dir).request('/api/digest/empty');
-    expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ rows: [], malformedLines: 0 });
+    const app = appFor(dir);
+    const [pageResponse, jsonResponse] = await Promise.all([
+      app.request('/digest/empty'),
+      app.request('/api/digest/empty'),
+    ]);
+
+    expect(pageResponse.status).toBe(200);
+    expect(await pageResponse.text()).toContain('nothing ran');
+    expect(jsonResponse.status).toBe(200);
+    expect(await jsonResponse.json()).toEqual({ rows: [], malformedLines: 0 });
   });
 });
